@@ -5,25 +5,56 @@
 // parameters: (err, req, res, next). Keep all four, even if you don't use next.
 //
 // Map each error TYPE to the right status:
-//   ValidationError        -> 400, return the per-field messages from err.errors
-//   CastError              -> 400, "Invalid ID format" (a bad ObjectId in the URL)
-//   Duplicate key (11000)  -> 409, name the clashing field from err.keyValue
-//   anything else          -> 500 (already done for you — log it, hide details)
+// ValidationError -> 400
+// CastError       -> 400
+// Duplicate key  -> 409
+// anything else  -> 500
 
 export function errorHandler(err, req, res, next) {
-  // TODO 4a: if (err.name === "ValidationError") -> 400 with a { field: message } map
-  //   const fields = {};
-  //   for (const key in err.errors) fields[key] = err.errors[key].message;
-  //   return res.status(400).json({ error: "ValidationError", fields });
 
-  // TODO 4b: if (err.name === "CastError") -> 400
-  //   return res.status(400).json({ error: "CastError", message: "Invalid ID format", field: err.path });
+  // TODO 4a: Validation Error
+  // Mongoose validation errors contain an `errors` object.
+  // We create a simple { field: message } map.
+  if (err.name === "ValidationError") {
+    const fields = {};
 
-  // TODO 4c: if (err.code === 11000) -> 409
-  //   const field = Object.keys(err.keyValue)[0];
-  //   return res.status(409).json({ error: "DuplicateKey", message: field + " already exists", field });
+    for (const key in err.errors) {
+      fields[key] = err.errors[key].message;
+    }
 
-  // Fallback (provided) — unknown error.
+    return res.status(400).json({
+      error: "ValidationError",
+      fields
+    });
+  }
+
+  // TODO 4b: Cast Error
+  // Happens when an invalid MongoDB ObjectId is provided.
+  if (err.name === "CastError") {
+    return res.status(400).json({
+      error: "CastError",
+      message: "Invalid ID format",
+      field: err.path
+    });
+  }
+
+  // TODO 4c: Duplicate Key Error
+  // MongoDB uses error code 11000 for duplicate values.
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyValue)[0];
+
+    return res.status(409).json({
+      error: "DuplicateKey",
+      message: field + " already exists",
+      field
+    });
+  }
+
+  // Fallback — unknown/unexpected error.
+  // Log the real error, but don't expose its details to the client.
   console.error(err);
-  res.status(500).json({ error: "InternalServerError" });
+
+  return res.status(500).json({
+    error: "InternalServerError"
+  });
 }
